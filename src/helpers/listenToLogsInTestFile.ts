@@ -4,11 +4,13 @@ import {
   readFromGlobalState,
   writeToGlobalState,
   isJavaScriptOrTypeScriptFile,
+  isPythonFile,
   getExtensionProperties,
   isProUser,
 } from './index';
 import { GlobalStateKey } from '@/entities';
 import { detectAll } from '@/debug-message/js/JSDebugMessage/detectAll/detectAll';
+import { detectAll as detectAllPython } from '@/debug-message/python/detectAll';
 import { showNotification } from '@/notifications/showNotification';
 import { NotificationEvent } from '@/notifications/NotificationEvent';
 
@@ -26,6 +28,9 @@ const TEST_FILE_PATTERNS = [
   /__tests__\//i,
   /\.test\.php$/i,
   /\.spec\.php$/i,
+  /(^|\/)test_[^/]+\.py$/i,
+  /(^|\/)[^/]+_test\.py$/i,
+  /(^|\/)tests?\//i,
 ];
 
 /**
@@ -77,8 +82,10 @@ export function listenToLogsInTestFile(
 
       const document = editor.document;
 
-      // Check if it's a JS/TS file
-      if (!isJavaScriptOrTypeScriptFile(document)) {
+      const isJS = isJavaScriptOrTypeScriptFile(document);
+      const isPython = isPythonFile(document);
+
+      if (!isJS && !isPython) {
         return;
       }
 
@@ -95,14 +102,23 @@ export function listenToLogsInTestFile(
 
       try {
         // Detect all logs in the test file
-        const messages = await detectAll(
-          fs,
-          vscode,
-          filePath,
-          extensionProperties.logFunction,
-          extensionProperties.logMessagePrefix,
-          extensionProperties.delimiterInsideMessage,
-        );
+        const messages = isPython
+          ? await detectAllPython(
+              fs,
+              vscode,
+              filePath,
+              extensionProperties.logFunction,
+              extensionProperties.logMessagePrefix,
+              extensionProperties.delimiterInsideMessage,
+            )
+          : await detectAll(
+              fs,
+              vscode,
+              filePath,
+              extensionProperties.logFunction,
+              extensionProperties.logMessagePrefix,
+              extensionProperties.delimiterInsideMessage,
+            );
 
         // Check if test file has enough logs to trigger notification
         if (messages.length >= TEST_FILE_LOG_THRESHOLD) {
